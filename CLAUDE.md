@@ -53,7 +53,7 @@ UIGen is a Next.js 15 app that uses Claude AI to generate React components with 
 
 - **Provider:** `src/lib/provider.ts` — Returns a real Claude model (`claude-haiku-4-5`) when `ANTHROPIC_API_KEY` is set, or a `MockLanguageModel` that generates sample components without an API key. The mock simulates streaming (15–30ms per char) and limits to 4 steps vs 40 for real Claude.
 - **System Prompt:** `src/lib/prompts/generation.tsx` — Instructs Claude to use Tailwind CSS, keep `/App.jsx` as root, use `@/` import alias, and only operate through tool calls. Uses Anthropic ephemeral prompt caching (`cacheControl: { type: "ephemeral" }`) to reduce token costs.
-- **Tools:** `src/lib/tools/str_replace.ts` (commands: `view`, `create`, `str_replace`, `insert`, `undo_edit`) and `src/lib/tools/file_manager.ts` (commands: `rename`, `delete`). Both are built dynamically with the current `VirtualFileSystem` instance injected.
+- **Tools:** `src/lib/tools/str_replace.ts` (commands: `view`, `create`, `str_replace`, `insert`, `undo_edit`) and `src/lib/tools/file_manager.ts` (commands: `rename`, `delete`). Both are built dynamically with the current `VirtualFileSystem` instance injected. Note: `undo_edit` is listed in the schema but not implemented — it returns an error if called.
 - **API Route:** `src/app/api/chat/route.ts` — Max 120s, 10,000 tokens, 40 steps (4 for mock).
 
 ### Preview System
@@ -78,6 +78,12 @@ Anonymous users can generate components; their work is tracked in `sessionStorag
 
 Prisma with SQLite (`prisma/dev.db`). Two models: `User` (email + hashed password) and `Project` (chat history + serialized file system as JSON strings, belongs to User with cascade delete). Prisma client is generated to `src/generated/prisma/` (non-standard location configured in `schema.prisma`).
 
+### Routing
+
+- **`/` (home):** Authenticated users are redirected to their most recent project; if none exist, a new project is auto-created first. Unauthenticated users see the landing/chat page.
+- **`/[projectId]`:** Loads a specific project for authenticated users; unauthenticated users are redirected to `/`.
+- **`src/hooks/use-auth.ts`** — Post-sign-in hook that migrates anonymous work to an authenticated project, then redirects to it.
+
 ### UI Layout
 
 `src/app/main-content.tsx` — Three-panel resizable layout: Chat (left, 35%) | Preview/Code tabs (right, 65%). The Code view splits further into FileTree (30%) + Monaco Editor (70%).
@@ -89,3 +95,11 @@ Vitest with jsdom environment (`vitest.config.mts`). Tests are colocated in `__t
 ### Path Alias
 
 `@/*` maps to `./src/*` throughout the codebase.
+
+### Tailwind & Styling
+
+Uses Tailwind CSS v4 with `@theme inline` syntax in `globals.css`. Colors use OKLch color space. Component library is shadcn/ui (style: "new-york", base color: "neutral") with Lucide icons.
+
+### Node.js Compatibility
+
+Build/dev scripts inject `NODE_OPTIONS="--require ./node-compat.cjs"` (see `node-compat.cjs`) to polyfill Web Storage globals that conflict with Node 25+ experimental APIs and break SSR.
